@@ -17,8 +17,19 @@ export interface User {
   id: string;
   name: string;
   username: string;
-  password?: string; // stored for demo simplicity
+  password?: string;
   role: UserRole;
+  commissionRate?: number;
+}
+
+export type VisualStyle = 'professional' | 'glass' | 'minimal' | 'soft';
+
+export interface AppTheme {
+  darkMode: boolean;
+  primaryColor: string;
+  fontSize: 'small' | 'medium' | 'large';
+  layoutType: 'spacious' | 'compact';
+  visualStyle: VisualStyle;
 }
 
 export interface AppSettings {
@@ -27,6 +38,7 @@ export interface AppSettings {
   taxRate: number;
   phone: string;
   address: string;
+  theme: AppTheme;
 }
 
 export interface Customer {
@@ -38,6 +50,13 @@ export interface Customer {
   totalVisits: number;
 }
 
+export interface UsedPart {
+  itemId: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
 export interface Ticket {
   id: string;
   customerId: string;
@@ -46,13 +65,16 @@ export interface Ticket {
   serialNumber: string;
   issueDescription: string;
   status: TicketStatus;
-  technicianId?: string; // ID of the assigned technician
-  technicianName?: string; // Display name
+  technicianId?: string;
+  technicianName?: string;
   cost: number;
   paid: boolean;
   createdAt: string;
   updatedAt: string;
   aiDiagnosis?: string;
+  commissionCalculated?: boolean;
+  usedParts?: UsedPart[];
+  partsCost?: number;
 }
 
 export interface InventoryItem {
@@ -66,6 +88,7 @@ export interface InventoryItem {
 export enum TransactionType {
   INCOME = 'إيراد',
   EXPENSE = 'مصروف',
+  COMMISSION = 'عمولة فني',
 }
 
 export interface Transaction {
@@ -75,6 +98,7 @@ export interface Transaction {
   description: string;
   date: string;
   relatedTicketId?: string;
+  relatedTechnicianId?: string;
 }
 
 export type View = 'DASHBOARD' | 'TICKETS' | 'INVENTORY' | 'FINANCE' | 'CRM' | 'SETTINGS' | 'USERS';

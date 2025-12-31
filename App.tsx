@@ -21,131 +21,112 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [settings, setSettings] = useState<AppSettings>(StorageService.getSettings());
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Load initial data
   useEffect(() => {
-    setTickets(StorageService.getTickets());
-    setInventory(StorageService.getInventory());
-    setCustomers(StorageService.getCustomers());
-    setTransactions(StorageService.getTransactions());
-    setUsers(StorageService.getUsers());
-    setSettings(StorageService.getSettings());
+    const data = {
+      tickets: StorageService.getTickets(),
+      inventory: StorageService.getInventory(),
+      customers: StorageService.getCustomers(),
+      transactions: StorageService.getTransactions(),
+      users: StorageService.getUsers(),
+      settings: StorageService.getSettings()
+    };
+    
+    setTickets(data.tickets);
+    setInventory(data.inventory);
+    setCustomers(data.customers);
+    setTransactions(data.transactions);
+    setUsers(data.users);
+    setSettings(data.settings);
+    applyTheme(data.settings);
   }, []);
 
-  // Sync with storage on updates
-  const updateTickets = (data: Ticket[]) => {
-    setTickets(data);
-    StorageService.saveTickets(data);
-  };
-  
-  const updateInventory = (data: InventoryItem[]) => {
-    setInventory(data);
-    StorageService.saveInventory(data);
-  };
+  const applyTheme = (s: AppSettings) => {
+    const root = document.documentElement;
+    if (s.theme.darkMode) root.classList.add('dark');
+    else root.classList.remove('dark');
 
-  const updateTransactions = (data: Transaction[]) => {
-    setTransactions(data);
-    StorageService.saveTransactions(data);
-  };
+    root.classList.remove('style-professional', 'style-glass', 'style-minimal', 'style-soft');
+    root.classList.add(`style-${s.theme.visualStyle}`);
 
-  const updateUsers = (data: User[]) => {
-    setUsers(data);
-    StorageService.saveUsers(data);
+    root.style.setProperty('--color-primary', s.theme.primaryColor);
+    
+    if (s.theme.visualStyle === 'glass') {
+      root.style.setProperty('--bg-gradient', s.theme.darkMode ? 
+        'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' : 
+        'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%)');
+    } else if (s.theme.visualStyle === 'soft') {
+      root.style.setProperty('--bg-gradient', s.theme.darkMode ? '#1e293b' : '#f0f4f8');
+    } else {
+      root.style.setProperty('--bg-gradient', 'none');
+    }
+
+    const sizes = { small: '14px', medium: '16px', large: '18px' };
+    root.style.fontSize = sizes[s.theme.fontSize] || '16px';
   };
 
   const updateSettings = (data: AppSettings) => {
     setSettings(data);
     StorageService.saveSettings(data);
+    applyTheme(data);
   };
 
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    // Redirect logic based on role
-    if (user.role === UserRole.TECHNICIAN) {
-      setCurrentView('TICKETS');
-    } else {
-      setCurrentView('DASHBOARD');
-    }
-  };
+  if (!currentUser) return <Login onLogin={setCurrentUser} />;
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setCurrentView('DASHBOARD');
-  };
+  const styleClasses = "themed-card transition-all duration-300";
 
   const renderView = () => {
-    if (!currentUser) return null;
+    const commonProps = {
+      currency: settings.currency,
+      currentUser,
+      styleClasses
+    };
 
     switch (currentView) {
-      case 'DASHBOARD':
-        return <Dashboard tickets={tickets} transactions={transactions} currency={settings.currency} />;
-      case 'TICKETS':
-        return <Tickets tickets={tickets} onUpdate={updateTickets} customers={customers} users={users} currentUser={currentUser} currency={settings.currency} shopName={settings.shopName} />;
-      case 'INVENTORY':
-        return <Inventory items={inventory} onUpdate={updateInventory} currency={settings.currency} currentUser={currentUser} />;
-      case 'FINANCE':
-        return <Finance transactions={transactions} onUpdate={updateTransactions} currency={settings.currency} />;
-      case 'CRM':
-        return <CRM customers={customers} tickets={tickets} />;
-      case 'SETTINGS':
-        return <Settings settings={settings} onUpdate={updateSettings} />;
-      case 'USERS':
-        return <Users users={users} onUpdate={updateUsers} currentUser={currentUser} />;
-      default:
-        return <Dashboard tickets={tickets} transactions={transactions} currency={settings.currency} />;
+      case 'DASHBOARD': return <Dashboard tickets={tickets} transactions={transactions} {...commonProps} />;
+      case 'TICKETS': return (
+        <Tickets 
+          tickets={tickets} onUpdate={(d: any) => { setTickets(d); StorageService.saveTickets(d); }}
+          customers={customers} onUpdateCustomers={(d: any) => { setCustomers(d); StorageService.saveCustomers(d); }}
+          transactions={transactions} onUpdateTransactions={(d: any) => { setTransactions(d); StorageService.saveTransactions(d); }}
+          inventory={inventory} onUpdateInventory={(d: any) => { setInventory(d); StorageService.saveInventory(d); }}
+          users={users} shopName={settings.shopName} layout={settings.theme.layoutType}
+          {...commonProps}
+        />
+      );
+      case 'INVENTORY': return <Inventory items={inventory} onUpdate={(d) => { setInventory(d); StorageService.saveInventory(d); }} {...commonProps} />;
+      case 'FINANCE': return <Finance transactions={transactions} onUpdate={(d) => { setTransactions(d); StorageService.saveTransactions(d); }} {...commonProps} />;
+      case 'CRM': return <CRM customers={customers} tickets={tickets} {...commonProps} />;
+      case 'SETTINGS': return <Settings settings={settings} onUpdate={updateSettings} />;
+      case 'USERS': return <Users users={users} onUpdate={(d) => { setUsers(d); StorageService.saveUsers(d); }} {...commonProps} />;
+      default: return <Dashboard tickets={tickets} transactions={transactions} {...commonProps} />;
     }
   };
 
-  if (!currentUser) {
-    return <Login onLogin={handleLogin} />;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 flex" dir="rtl">
-      {/* Sidebar */}
+    <div className={`min-h-screen flex main-bg-gradient transition-all duration-500 ${settings.theme.darkMode ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`} dir="rtl">
       <Sidebar 
         currentView={currentView} 
-        onChangeView={(v) => { setCurrentView(v); setMobileMenuOpen(false); }} 
-        currentUser={currentUser}
-        onLogout={handleLogout}
+        onChangeView={setCurrentView} 
+        currentUser={currentUser} 
+        onLogout={() => setCurrentUser(null)}
+        darkMode={settings.theme.darkMode}
+        visualStyle={settings.theme.visualStyle}
       />
-
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setMobileMenuOpen(false)}>
-           <div className="w-64 h-full bg-slate-900 pt-16" onClick={e => e.stopPropagation()}>
-               <div className="flex flex-col space-y-2 p-4">
-                  {/* Simplistic mobile menu replication - in real app would use shared config */}
-                   <button onClick={handleLogout} className="text-right px-4 py-3 rounded text-red-400 hover:bg-slate-800">تسجيل خروج</button>
-               </div>
-           </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex-1 md:mr-64 transition-all duration-300">
-        {/* Header */}
-        <header className="bg-white h-16 border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-10">
-          <button className="md:hidden text-slate-600" onClick={() => setMobileMenuOpen(true)}>
-            <Menu />
-          </button>
-          <div className="font-bold text-slate-700 md:hidden">{settings.shopName}</div>
-          <div className="flex items-center gap-4 mr-auto">
-            <div className="flex items-center gap-2">
-              <div className="text-left hidden sm:block">
-                <p className="text-sm font-bold text-slate-800">{currentUser.name}</p>
-                <p className="text-xs text-slate-500">{currentUser.role}</p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold uppercase">
-                {currentUser.username.substring(0, 2)}
-              </div>
-            </div>
+      <div className="flex-1 md:mr-64">
+        <header className={`h-16 border-b flex items-center justify-between px-6 sticky top-0 z-10 ${settings.theme.visualStyle === 'glass' ? 'glass-panel' : (settings.theme.darkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-white/80 border-slate-200')} backdrop-blur-md`}>
+          <div className="font-bold text-primary text-xl tracking-tight">{settings.shopName}</div>
+          <div className="flex items-center gap-3">
+             <div className="text-left hidden sm:block">
+                <p className="text-sm font-bold">{currentUser.name}</p>
+                <p className="text-[10px] opacity-60 uppercase">{currentUser.role}</p>
+             </div>
+             <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold border border-primary/30">
+               {currentUser.username[0].toUpperCase()}
+             </div>
           </div>
         </header>
-
-        {/* View Content */}
-        <main className="p-6 max-w-7xl mx-auto">
+        <main className={`p-6 max-w-7xl mx-auto ${settings.theme.layoutType === 'compact' ? 'space-y-3' : 'space-y-6'}`}>
           {renderView()}
         </main>
       </div>

@@ -1,14 +1,15 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = process.env.API_KEY || '';
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeRepairIssue = async (device: string, issue: string): Promise<string> => {
-  if (!ai) return "الرجاء تكوين مفتاح API لاستخدام الذكاء الاصطناعي.";
-
   try {
-    const model = ai.models.getGenerativeModel({ model: "gemini-3-flash-preview" });
-    const prompt = `
+    // When using generate content for text answers, use ai.models.generateContent directly
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `
       أنت خبير صيانة هواتف ذكية.
       الجهاز: ${device}
       المشكلة: ${issue}
@@ -19,12 +20,11 @@ export const analyzeRepairIssue = async (device: string, issue: string): Promise
       3. مستوى صعوبة الإصلاح (سهل/متوسط/صعب).
       
       اجعل الرد كنقاط واضحة.
-    `;
-
-    const result = await model.generateContent({
-        contents: prompt
+    `,
     });
-    return result.text || "لم يتم استلام رد من النظام.";
+
+    // Use the .text property (not a method) to extract the text output
+    return response.text || "لم يتم استلام رد من النظام.";
   } catch (error) {
     console.error("AI Error:", error);
     return "حدث خطأ أثناء الاتصال بالمساعد الذكي.";
