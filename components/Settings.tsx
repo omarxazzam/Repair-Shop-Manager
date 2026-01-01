@@ -1,6 +1,9 @@
+
 import React, { useState } from 'react';
 import { AppSettings, VisualStyle } from '../types';
-import { Save, Store, Calculator, Phone, MapPin, Globe, Palette, Moon, Sun, Type, LayoutTemplate, Box, Sparkles, Layers, Zap } from 'lucide-react';
+// Import StorageService to provide access to its utility methods (e.g., generateId)
+import { StorageService } from '../services/storage';
+import { Save, Store, Calculator, Phone, MapPin, Globe, Palette, Moon, Sun, Type, LayoutTemplate, Box, Sparkles, Layers, Zap, Printer, CheckSquare, Square } from 'lucide-react';
 
 interface SettingsProps {
   settings: AppSettings;
@@ -9,7 +12,7 @@ interface SettingsProps {
 
 export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
-  const [activeTab, setActiveTab] = useState<'general' | 'theme'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'theme' | 'print'>('general');
   const [saved, setSaved] = useState(false);
 
   const colors = [
@@ -33,6 +36,16 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const togglePrintField = (field: keyof typeof settings.printConfig) => {
+    setLocalSettings({
+      ...localSettings,
+      printConfig: {
+        ...localSettings.printConfig,
+        [field]: !localSettings.printConfig[field]
+      }
+    });
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -43,9 +56,10 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
       </div>
 
       <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-700 transition-all duration-500`}>
-        <div className="flex bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-700">
-          <button onClick={() => setActiveTab('general')} className={`px-8 py-4 font-bold transition-all ${activeTab === 'general' ? 'border-b-4 border-primary text-primary bg-white dark:bg-slate-800' : 'text-slate-500'}`}>الإعدادات العامة</button>
-          <button onClick={() => setActiveTab('theme')} className={`px-8 py-4 font-bold transition-all ${activeTab === 'theme' ? 'border-b-4 border-primary text-primary bg-white dark:bg-slate-800' : 'text-slate-500'}`}>المظهر والأنماط</button>
+        <div className="flex bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-700 overflow-x-auto">
+          <button onClick={() => setActiveTab('general')} className={`px-8 py-4 font-bold whitespace-nowrap transition-all ${activeTab === 'general' ? 'border-b-4 border-primary text-primary bg-white dark:bg-slate-800' : 'text-slate-500'}`}>الإعدادات العامة</button>
+          <button onClick={() => setActiveTab('theme')} className={`px-8 py-4 font-bold whitespace-nowrap transition-all ${activeTab === 'theme' ? 'border-b-4 border-primary text-primary bg-white dark:bg-slate-800' : 'text-slate-500'}`}>المظهر والأنماط</button>
+          <button onClick={() => setActiveTab('print')} className={`px-8 py-4 font-bold whitespace-nowrap transition-all ${activeTab === 'print' ? 'border-b-4 border-primary text-primary bg-white dark:bg-slate-800' : 'text-slate-500'}`}>إعدادات الطباعة</button>
         </div>
 
         <div className="p-8">
@@ -60,9 +74,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
                 <input type="text" className="w-full p-4 rounded-xl border dark:bg-slate-700 dark:border-slate-600 outline-none focus:ring-2 focus:ring-primary" value={localSettings.currency} onChange={e => setLocalSettings({...localSettings, currency: e.target.value})} />
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'theme' ? (
             <div className="space-y-10">
-              {/* Visual Styles Presets */}
               <div>
                 <h4 className="font-bold text-lg mb-6 flex items-center gap-2 text-primary">
                   <Sparkles size={20}/> الهوية البصرية للبرنامج
@@ -89,7 +102,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-6 border-t dark:border-slate-700">
-                {/* Primary Color */}
                 <div>
                   <h4 className="font-bold mb-4 flex items-center gap-2"><Palette size={18}/> لون الهوية</h4>
                   <div className="flex flex-wrap gap-3">
@@ -104,7 +116,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
                   </div>
                 </div>
 
-                {/* Night Mode Switch */}
                 <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-2xl flex items-center justify-between border dark:border-slate-700">
                    <div className="flex items-center gap-4">
                       {localSettings.theme.darkMode ? <Moon className="text-yellow-400" size={28}/> : <Sun className="text-orange-500" size={28}/>}
@@ -121,6 +132,57 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
                    </button>
                 </div>
               </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+               <div>
+                  <h4 className="font-bold text-lg mb-6 flex items-center gap-2 text-primary">
+                    <Printer size={20}/> تخصيص بيانات ملصق الاستلام (4*3سم)
+                  </h4>
+                  <p className="text-xs text-slate-500 mb-8">اختر البيانات التي تريد ظهورها عند طباعة ملصق الباركود الحراري للاستلام.</p>
+                  
+                  <div className="space-y-4">
+                     {[
+                       { key: 'showShopName', label: 'اسم المركز' },
+                       { key: 'showId', label: 'رقم التذكرة (Barcode)' },
+                       { key: 'showCustomerName', label: 'اسم العميل' },
+                       { key: 'showDeviceModel', label: 'موديل الجهاز' },
+                       { key: 'showIssue', label: 'وصف العطل' },
+                       { key: 'showDate', label: 'تاريخ الاستلام' },
+                       { key: 'showCost', label: 'السعر المتفق عليه' },
+                     ].map((field) => (
+                       <button 
+                        key={field.key}
+                        onClick={() => togglePrintField(field.key as any)}
+                        className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${localSettings.printConfig[field.key as keyof typeof localSettings.printConfig] ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-slate-700'}`}
+                       >
+                         <span className="font-bold text-slate-700 dark:text-slate-200">{field.label}</span>
+                         {localSettings.printConfig[field.key as keyof typeof localSettings.printConfig] ? <CheckSquare className="text-primary" /> : <Square className="text-slate-300" />}
+                       </button>
+                     ))}
+                  </div>
+               </div>
+
+               <div className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
+                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">معاينة حية للملصق (40mm x 30mm)</h5>
+                  <div 
+                    className="bg-white text-black border shadow-2xl overflow-hidden p-2 flex flex-col justify-between"
+                    style={{ width: '151px', height: '113px', fontSize: '9px', lineHeight: '1.2' }} // Scale down approx 1:1 on screen
+                  >
+                     {localSettings.printConfig.showShopName && <div className="font-black text-center border-b pb-1 mb-1" style={{fontSize: '10px'}}>{localSettings.shopName}</div>}
+                     <div className="flex-1 space-y-1">
+                        {localSettings.printConfig.showId && <div className="font-bold">#T-{StorageService.generateId().slice(0,4).toUpperCase()}</div>}
+                        {localSettings.printConfig.showCustomerName && <div className="truncate"><span className="opacity-50 font-medium">العميل:</span> أحمد محمد</div>}
+                        {localSettings.printConfig.showDeviceModel && <div className="truncate"><span className="opacity-50 font-medium">الجهاز:</span> iPhone 13 Pro</div>}
+                        {localSettings.printConfig.showIssue && <div className="line-clamp-2"><span className="opacity-50 font-medium">العطل:</span> تغيير شاشة خارجية أصلية</div>}
+                     </div>
+                     <div className="flex justify-between items-end border-t pt-1 mt-1" style={{fontSize: '8px'}}>
+                        {localSettings.printConfig.showDate && <span>2024/05/20</span>}
+                        {localSettings.printConfig.showCost && <span className="font-black">1500 {localSettings.currency}</span>}
+                     </div>
+                  </div>
+                  <p className="mt-6 text-[10px] text-center text-slate-400 font-bold max-w-[200px]">هذه المعاينة توضح التنسيق التقريبي فقط، تختلف النتيجة حسب نوع الطابعة.</p>
+               </div>
             </div>
           )}
         </div>

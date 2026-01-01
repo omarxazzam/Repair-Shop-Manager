@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -7,9 +8,10 @@ import { Finance } from './components/Finance';
 import { CRM } from './components/CRM';
 import { Settings } from './components/Settings';
 import { Users } from './components/Users';
+import { Logs } from './components/Logs';
 import { Login } from './components/Login';
 import { StorageService } from './services/storage';
-import { AppSettings, Customer, InventoryItem, Ticket, Transaction, User, UserRole, View } from './types';
+import { AppSettings, Customer, InventoryItem, Ticket, Transaction, User, UserRole, View, LogEntry } from './types';
 import { Menu } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -20,6 +22,7 @@ const App: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [settings, setSettings] = useState<AppSettings>(StorageService.getSettings());
 
   useEffect(() => {
@@ -29,7 +32,8 @@ const App: React.FC = () => {
       customers: StorageService.getCustomers(),
       transactions: StorageService.getTransactions(),
       users: StorageService.getUsers(),
-      settings: StorageService.getSettings()
+      settings: StorageService.getSettings(),
+      logs: StorageService.getLogs()
     };
     
     setTickets(data.tickets);
@@ -38,6 +42,7 @@ const App: React.FC = () => {
     setTransactions(data.transactions);
     setUsers(data.users);
     setSettings(data.settings);
+    setLogs(data.logs);
     applyTheme(data.settings);
   }, []);
 
@@ -51,24 +56,53 @@ const App: React.FC = () => {
 
     root.style.setProperty('--color-primary', s.theme.primaryColor);
     
-    if (s.theme.visualStyle === 'glass') {
-      root.style.setProperty('--bg-gradient', s.theme.darkMode ? 
-        'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' : 
-        'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%)');
-    } else if (s.theme.visualStyle === 'soft') {
-      root.style.setProperty('--bg-gradient', s.theme.darkMode ? '#1e293b' : '#f0f4f8');
-    } else {
-      root.style.setProperty('--bg-gradient', 'none');
-    }
-
     const sizes = { small: '14px', medium: '16px', large: '18px' };
     root.style.fontSize = sizes[s.theme.fontSize] || '16px';
+  };
+
+  const addLog = (action: string, details: string, type: 'CREATE' | 'UPDATE' | 'DELETE' | 'SYSTEM' = 'SYSTEM') => {
+    if (!currentUser) return;
+    const newLog: LogEntry = {
+      id: StorageService.generateId(),
+      userId: currentUser.id,
+      userName: currentUser.name,
+      action,
+      details,
+      timestamp: new Date().toISOString(),
+      type
+    };
+    setLogs(prev => {
+      const updated = [...prev, newLog];
+      StorageService.saveLogs(updated);
+      return updated;
+    });
+  };
+
+  const handleUpdateTickets = (newTickets: Ticket[]) => {
+    setTickets([...newTickets]);
+    StorageService.saveTickets(newTickets);
+  };
+
+  const handleUpdateInventory = (newInventory: InventoryItem[]) => {
+    setInventory([...newInventory]);
+    StorageService.saveInventory(newInventory);
+  };
+
+  const handleUpdateCustomers = (newCustomers: Customer[]) => {
+    setCustomers([...newCustomers]);
+    StorageService.saveCustomers(newCustomers);
+  };
+
+  const handleUpdateTransactions = (newTransactions: Transaction[]) => {
+    setTransactions([...newTransactions]);
+    StorageService.saveTransactions(newTransactions);
   };
 
   const updateSettings = (data: AppSettings) => {
     setSettings(data);
     StorageService.saveSettings(data);
     applyTheme(data);
+    addLog('تحديث الإعدادات', 'قام بتعديل إعدادات النظام العامة والمظهر', 'UPDATE');
   };
 
   if (!currentUser) return <Login onLogin={setCurrentUser} />;
@@ -79,26 +113,41 @@ const App: React.FC = () => {
     const commonProps = {
       currency: settings.currency,
       currentUser,
-      styleClasses
+      styleClasses,
+      onAddLog: addLog
     };
 
     switch (currentView) {
       case 'DASHBOARD': return <Dashboard tickets={tickets} transactions={transactions} {...commonProps} />;
       case 'TICKETS': return (
         <Tickets 
-          tickets={tickets} onUpdate={(d: any) => { setTickets(d); StorageService.saveTickets(d); }}
-          customers={customers} onUpdateCustomers={(d: any) => { setCustomers(d); StorageService.saveCustomers(d); }}
-          transactions={transactions} onUpdateTransactions={(d: any) => { setTransactions(d); StorageService.saveTransactions(d); }}
-          inventory={inventory} onUpdateInventory={(d: any) => { setInventory(d); StorageService.saveInventory(d); }}
-          users={users} shopName={settings.shopName} layout={settings.theme.layoutType}
+          tickets={tickets} 
+          onUpdate={handleUpdateTickets}
+          customers={customers} 
+          onUpdateCustomers={handleUpdateCustomers}
+          transactions={transactions} 
+          onUpdateTransactions={handleUpdateTransactions}
+          inventory={inventory} 
+          onUpdateInventory={handleUpdateInventory}
+          users={users} 
+          shopName={settings.shopName} 
+          layout={settings.theme.layoutType}
           {...commonProps}
         />
       );
-      case 'INVENTORY': return <Inventory items={inventory} onUpdate={(d) => { setInventory(d); StorageService.saveInventory(d); }} {...commonProps} />;
-      case 'FINANCE': return <Finance transactions={transactions} onUpdate={(d) => { setTransactions(d); StorageService.saveTransactions(d); }} {...commonProps} />;
-      case 'CRM': return <CRM customers={customers} tickets={tickets} {...commonProps} />;
+      case 'INVENTORY': return <Inventory items={inventory} onUpdate={handleUpdateInventory} {...commonProps} />;
+      case 'FINANCE': return <Finance transactions={transactions} onUpdate={handleUpdateTransactions} {...commonProps} />;
+      case 'CRM': return (
+        <CRM 
+          customers={customers} 
+          onUpdateCustomers={handleUpdateCustomers} 
+          tickets={tickets} 
+          {...commonProps} 
+        />
+      );
       case 'SETTINGS': return <Settings settings={settings} onUpdate={updateSettings} />;
       case 'USERS': return <Users users={users} onUpdate={(d) => { setUsers(d); StorageService.saveUsers(d); }} {...commonProps} />;
+      case 'LOGS': return currentUser.role === UserRole.ADMIN ? <Logs logs={logs} styleClasses={styleClasses} /> : <Dashboard tickets={tickets} transactions={transactions} {...commonProps} />;
       default: return <Dashboard tickets={tickets} transactions={transactions} {...commonProps} />;
     }
   };

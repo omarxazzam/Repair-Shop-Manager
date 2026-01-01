@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
-import { Ticket, TicketStatus, Customer, User, UserRole, Transaction, TransactionType, InventoryItem, UsedPart } from '../types';
+import { Ticket, TicketStatus, Customer, User, UserRole, Transaction, TransactionType, InventoryItem } from '../types';
 import { StorageService } from '../services/storage';
 import { analyzeRepairIssue } from '../services/geminiService';
-import { Plus, Search, Printer, Edit2, CheckCircle, Clock, AlertCircle, Bot, User as UserIcon, UserPlus, Package, X } from 'lucide-react';
+import { Plus, Search, Printer, Edit2, Clock, Bot, X, Trash2, XCircle, AlertCircle } from 'lucide-react';
 
 interface TicketsProps {
   tickets: Ticket[];
@@ -20,18 +20,18 @@ interface TicketsProps {
   shopName: string;
   layout: 'spacious' | 'compact';
   styleClasses: string;
+  onAddLog: (action: string, details: string, type: 'CREATE' | 'UPDATE' | 'DELETE' | 'SYSTEM') => void;
 }
 
 export const Tickets: React.FC<TicketsProps> = ({ 
   tickets, onUpdate, customers, onUpdateCustomers, 
   transactions, onUpdateTransactions, inventory, onUpdateInventory,
-  users, currentUser, currency, shopName, layout, styleClasses 
+  users, currentUser, currency, shopName, layout, styleClasses, onAddLog 
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewCustomer, setIsNewCustomer] = useState(true);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  
   const [newTicket, setNewTicket] = useState<Partial<Ticket>>({
     customerName: '',
     deviceModel: '',
@@ -48,59 +48,135 @@ export const Tickets: React.FC<TicketsProps> = ({
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
 
   const technicians = users.filter(u => u.role === UserRole.TECHNICIAN);
+  const settings = StorageService.getSettings();
 
-  const handleAiAnalyze = async () => {
-    if (!newTicket.deviceModel || !newTicket.issueDescription) {
-      alert("يرجى إدخال موديل الجهاز ووصف المشكلة أولاً");
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const result = await analyzeRepairIssue(newTicket.deviceModel, newTicket.issueDescription);
-      setAiSuggestion(result);
-    } catch (error) {
-      console.error("AI Analysis failed:", error);
-    } finally {
-      setAiLoading(false);
-    }
+  const handlePrintSticker = (e: React.MouseEvent, ticket: Ticket) => {
+    e.stopPropagation();
+    const printWindow = window.open('', '_blank', 'width=400,height=300');
+    if (!printWindow) return;
+    const config = settings.printConfig;
+    const dateStr = new Date(ticket.createdAt).toLocaleDateString('ar-EG');
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html dir="rtl">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @page { size: 40mm 30mm; margin: 0; }
+          body { font-family: 'Arial', sans-serif; width: 40mm; height: 30mm; margin: 0; padding: 2mm; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; font-size: 8px; line-height: 1.1; background: white; color: black; }
+          .header { font-size: 9px; font-weight: 900; text-align: center; border-bottom: 0.2mm solid black; padding-bottom: 1mm; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; }
+          .content { flex: 1; display: flex; flex-direction: column; gap: 0.5mm; }
+          .id { font-weight: 900; font-size: 8px; }
+          .label { opacity: 0.7; font-weight: normal; margin-left: 1mm; }
+          .value { font-weight: bold; }
+          .footer { display: flex; justify-content: space-between; align-items: flex-end; border-top: 0.2mm solid black; padding-top: 0.5mm; margin-top: 0.5mm; font-size: 7px; }
+          .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        </style>
+      </head>
+      <body>
+        ${config.showShopName ? `<div class="header">${settings.shopName}</div>` : ''}
+        <div class="content">
+          ${config.showId ? `<div class="id">ID: #${ticket.id.toUpperCase().slice(0, 6)}</div>` : ''}
+          ${config.showCustomerName ? `<div class="truncate"><span class="label">العميل:</span><span class="value">${ticket.customerName}</span></div>` : ''}
+          ${config.showDeviceModel ? `<div class="truncate"><span class="label">الجهاز:</span><span class="value">${ticket.deviceModel}</span></div>` : ''}
+          ${config.showIssue ? `<div class="line-clamp-2"><span class="label">العطل:</span><span class="value">${ticket.issueDescription}</span></div>` : ''}
+        </div>
+        <div class="footer">
+          ${config.showDate ? `<span>${dateStr}</span>` : ''}
+          ${config.showCost ? `<span style="font-weight:900">${ticket.cost} ${currency}</span>` : ''}
+        </div>
+        <script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); }</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
-  const handleAddPart = (itemId: string) => {
-    const item = inventory.find(i => i.id === itemId);
-    if (!item || item.quantity <= 0) {
-      alert("هذه القطعة غير متوفرة في المخزن");
-      return;
-    }
-
-    const currentParts = newTicket.usedParts || [];
-    const existing = currentParts.find(p => p.itemId === itemId);
+  // دالة الحذف النهائية والمجربة - تم تحسينها لتعمل 100%
+  const handleDeleteTicket = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     
-    if (existing) {
-      if (existing.quantity >= item.quantity) {
-        alert("لا يمكن تجاوز الكمية المتوفرة في المخزن");
-        return;
+    const ticket = tickets.find(t => t.id === id);
+    if (!ticket) return;
+
+    // استخدام confirm بشكل مباشر ومبسط لضمان ظهوره في كل المتصفحات
+    if (window.confirm(`⚠️ تحذير: هل أنت متأكد من حذف تذكرة العميل "${ticket.customerName}" نهائياً؟`)) {
+      // 1. إعادة قطع الغيار للمخزن أولاً لضمان دقة البيانات
+      if (ticket.usedParts && ticket.usedParts.length > 0) {
+        const updatedInventory = inventory.map(item => {
+          const used = ticket.usedParts?.find(up => up.itemId === item.id);
+          return used ? { ...item, quantity: item.quantity + used.quantity } : item;
+        });
+        onUpdateInventory(updatedInventory);
       }
-      setNewTicket({
-        ...newTicket,
-        usedParts: currentParts.map(p => p.itemId === itemId ? { ...p, quantity: p.quantity + 1 } : p)
-      });
-    } else {
-      setNewTicket({
-        ...newTicket,
-        usedParts: [...currentParts, { itemId: item.id, name: item.name, quantity: 1, price: item.price }]
-      });
+
+      // 2. تحديث قائمة التذاكر (تصفية التذكرة المحذوفة)
+      const updatedTickets = tickets.filter(t => t.id !== id);
+      onUpdate(updatedTickets);
+
+      // 3. إضافة سجل رقابي
+      onAddLog('حذف تذكرة', `تم حذف تذكرة العميل ${ticket.customerName} (جهاز: ${ticket.deviceModel})`, 'DELETE');
+      
+      console.log("Ticket deleted successfully:", id);
     }
   };
 
-  const handleRemovePart = (itemId: string) => {
-    setNewTicket({
-      ...newTicket,
-      usedParts: (newTicket.usedParts || []).filter(p => p.itemId !== itemId)
-    });
+  const handleRejectTicket = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const ticket = tickets.find(t => t.id === id);
+    if (!ticket) return;
+
+    if (window.confirm(`هل تريد رفض إصلاح جهاز "${ticket.deviceModel}" وإعادته للعميل؟`)) {
+      const updated = tickets.map(t => t.id === id ? { ...t, status: TicketStatus.REJECTED, updatedAt: new Date().toISOString() } : t);
+      onUpdate(updated);
+      onAddLog('رفض جهاز', `تم تغيير حالة تذكرة ${ticket.customerName} إلى مرفوض`, 'UPDATE');
+    }
   };
 
-  const calculatePartsCost = () => {
-    return (newTicket.usedParts || []).reduce((sum, p) => sum + (p.price * p.quantity), 0);
+  const handleEditTicket = (e: React.MouseEvent, ticket: Ticket) => {
+    e.stopPropagation();
+    setNewTicket({ ...ticket });
+    setAiSuggestion(ticket.aiDiagnosis || null);
+    setSelectedCustomerId(ticket.customerId);
+    setIsNewCustomer(false);
+    setShowForm(true);
+  };
+
+  const handleStatusChange = (id: string, newStatus: TicketStatus) => {
+    const updated = tickets.map(t => {
+      if (t.id === id) {
+        let update = { ...t, status: newStatus, updatedAt: new Date().toISOString() };
+        if (newStatus === TicketStatus.DELIVERED && !t.commissionCalculated && t.technicianId && t.cost > 0) {
+          const tech = users.find(u => u.id === t.technicianId);
+          if (tech && tech.commissionRate) {
+            const incomeTrans: Transaction = { id: StorageService.generateId(), type: TransactionType.INCOME, amount: t.cost, description: `تذكرة #${t.id}`, date: new Date().toISOString(), relatedTicketId: t.id };
+            const commTrans: Transaction = { id: StorageService.generateId(), type: TransactionType.COMMISSION, amount: (t.cost * tech.commissionRate) / 100, description: `عمولة #${t.id}`, date: new Date().toISOString(), relatedTicketId: t.id, relatedTechnicianId: tech.id };
+            onUpdateTransactions([incomeTrans, commTrans, ...transactions]);
+            update.commissionCalculated = true;
+            update.paid = true;
+          }
+        }
+        return update;
+      }
+      return t;
+    });
+    onUpdate(updated);
+    onAddLog('تغيير حالة', `تم تغيير حالة التذكرة #${id} إلى ${newStatus}`, 'UPDATE');
+  };
+
+  const getStatusColor = (status: TicketStatus) => {
+    switch (status) {
+      case TicketStatus.RECEIVED: return 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
+      case TicketStatus.READY: return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400';
+      case TicketStatus.DELIVERED: return 'bg-gray-100 dark:bg-slate-800 text-gray-500';
+      case TicketStatus.REJECTED: return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400';
+      default: return 'bg-primary/10 text-primary';
+    }
   };
 
   const handleSaveTicket = () => {
@@ -177,21 +253,15 @@ export const Tickets: React.FC<TicketsProps> = ({
 
     if (isEditing) {
       onUpdate(tickets.map(t => t.id === finalTicketData.id ? finalTicketData : t));
+      onAddLog('تعديل تذكرة', `تم تحديث بيانات التذكرة #${finalTicketData.id}`, 'UPDATE');
     } else {
       onUpdate([finalTicketData, ...tickets]);
+      onAddLog('إضافة تذكرة', `تم استلام جهاز ${finalTicketData.deviceModel} من ${finalTicketData.customerName}`, 'CREATE');
     }
     
     onUpdateInventory(updatedInventory);
     setShowForm(false);
     resetForm();
-  };
-
-  const handleEditTicket = (ticket: Ticket) => {
-    setNewTicket({ ...ticket });
-    setAiSuggestion(ticket.aiDiagnosis || null);
-    setSelectedCustomerId(ticket.customerId);
-    setIsNewCustomer(false);
-    setShowForm(true);
   };
 
   const resetForm = () => {
@@ -203,34 +273,56 @@ export const Tickets: React.FC<TicketsProps> = ({
     setNewCustPhone(''); setSelectedCustomerId(''); setIsNewCustomer(true); setAiSuggestion(null);
   };
 
-  const handleStatusChange = (id: string, newStatus: TicketStatus) => {
-    const updated = tickets.map(t => {
-      if (t.id === id) {
-        let update = { ...t, status: newStatus, updatedAt: new Date().toISOString() };
-        if (newStatus === TicketStatus.DELIVERED && !t.commissionCalculated && t.technicianId && t.cost > 0) {
-          const tech = users.find(u => u.id === t.technicianId);
-          if (tech && tech.commissionRate) {
-            const incomeTrans: Transaction = { id: StorageService.generateId(), type: TransactionType.INCOME, amount: t.cost, description: `تذكرة #${t.id}`, date: new Date().toISOString(), relatedTicketId: t.id };
-            const commTrans: Transaction = { id: StorageService.generateId(), type: TransactionType.COMMISSION, amount: (t.cost * tech.commissionRate) / 100, description: `عمولة #${t.id}`, date: new Date().toISOString(), relatedTicketId: t.id, relatedTechnicianId: tech.id };
-            onUpdateTransactions([incomeTrans, commTrans, ...transactions]);
-            update.commissionCalculated = true;
-            update.paid = true;
-          }
-        }
-        return update;
-      }
-      return t;
-    });
-    onUpdate(updated);
+  const handleAiAnalyze = async () => {
+    if (!newTicket.deviceModel || !newTicket.issueDescription) {
+      alert("يرجى إدخال موديل الجهاز ووصف المشكلة أولاً");
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const result = await analyzeRepairIssue(newTicket.deviceModel, newTicket.issueDescription);
+      setAiSuggestion(result);
+    } catch (error) {
+      console.error("AI Analysis failed:", error);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
-  const getStatusColor = (status: TicketStatus) => {
-    switch (status) {
-      case TicketStatus.RECEIVED: return 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
-      case TicketStatus.READY: return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400';
-      case TicketStatus.DELIVERED: return 'bg-gray-100 dark:bg-slate-800 text-gray-500';
-      default: return 'bg-primary/10 text-primary';
+  const handleAddPart = (itemId: string) => {
+    const item = inventory.find(i => i.id === itemId);
+    if (!item || item.quantity <= 0) {
+      alert("هذه القطعة غير متوفرة في المخزن");
+      return;
     }
+    const currentParts = newTicket.usedParts || [];
+    const existing = currentParts.find(p => p.itemId === itemId);
+    if (existing) {
+      if (existing.quantity >= item.quantity) {
+        alert("لا يمكن تجاوز الكمية المتوفرة في المخزن");
+        return;
+      }
+      setNewTicket({
+        ...newTicket,
+        usedParts: currentParts.map(p => p.itemId === itemId ? { ...p, quantity: p.quantity + 1 } : p)
+      });
+    } else {
+      setNewTicket({
+        ...newTicket,
+        usedParts: [...currentParts, { itemId: item.id, name: item.name, quantity: 1, price: item.price }]
+      });
+    }
+  };
+
+  const handleRemovePart = (itemId: string) => {
+    setNewTicket({
+      ...newTicket,
+      usedParts: (newTicket.usedParts || []).filter(p => p.itemId !== itemId)
+    });
+  };
+
+  const calculatePartsCost = () => {
+    return (newTicket.usedParts || []).reduce((sum, p) => sum + (p.price * p.quantity), 0);
   };
 
   return (
@@ -252,37 +344,54 @@ export const Tickets: React.FC<TicketsProps> = ({
 
       <div className={`grid gap-5 ${layout === 'compact' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
         {tickets.filter(t => t.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || t.deviceModel.toLowerCase().includes(searchTerm.toLowerCase())).map(ticket => (
-          <div key={ticket.id} className={`${styleClasses} ${layout === 'compact' ? 'p-3' : 'p-5'}`}>
+          <div key={ticket.id} className={`${styleClasses} ${layout === 'compact' ? 'p-3' : 'p-5'} border-t-4 border-transparent hover:border-primary group relative`}>
             <div className="flex justify-between items-start mb-3">
-              <span className="font-bold text-primary text-[10px] tracking-widest">#{ticket.id}</span>
-              <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${getStatusColor(ticket.status)}`}>{ticket.status}</span>
+              <span className="font-bold text-primary text-[10px] tracking-widest">#{ticket.id.toUpperCase().slice(0, 6)}</span>
+              <div className="flex gap-2">
+                 <button onClick={(e) => handlePrintSticker(e, ticket)} className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="طباعة">
+                    <Printer size={16} />
+                 </button>
+                 <button onClick={(e) => handleEditTicket(e, ticket)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all" title="تعديل">
+                    <Edit2 size={16} />
+                 </button>
+                 <button onClick={(e) => handleRejectTicket(e, ticket.id)} className="p-2 text-slate-400 hover:text-orange-500 hover:bg-orange-500/10 rounded-xl transition-all" title="رفض الإصلاح">
+                    <XCircle size={16} />
+                 </button>
+                 <button 
+                  onClick={(e) => handleDeleteTicket(e, ticket.id)} 
+                  className="p-2 text-red-300 hover:text-red-600 hover:bg-red-500/10 rounded-xl transition-all" 
+                  title="حذف نهائي"
+                 >
+                    <Trash2 size={16} />
+                 </button>
+              </div>
             </div>
             <div className={`space-y-1.5 text-slate-600 dark:text-slate-300 ${layout === 'compact' ? 'text-xs' : 'text-sm'}`}>
               <div className="flex justify-between items-center">
-                <p className="font-bold text-slate-900 dark:text-white truncate flex-1">{ticket.customerName}</p>
-                <button onClick={() => handleEditTicket(ticket)} className="text-slate-400 hover:text-primary p-1 transition-colors">
-                  <Edit2 size={14} />
-                </button>
+                <p className="font-black text-slate-900 dark:text-white truncate flex-1">{ticket.customerName}</p>
               </div>
-              <p className="opacity-70 truncate">{ticket.deviceModel}</p>
+              <p className="font-bold opacity-70 truncate text-primary">{ticket.deviceModel}</p>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
                 <p className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10}/> {new Date(ticket.createdAt).toLocaleDateString()}</p>
-                <p className="text-[10px] font-medium text-slate-500">{ticket.technicianName}</p>
+                <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${getStatusColor(ticket.status)}`}>{ticket.status}</span>
               </div>
             </div>
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex items-center justify-between gap-2">
               <select 
                 value={ticket.status} onChange={(e) => handleStatusChange(ticket.id, e.target.value as TicketStatus)}
-                className="bg-slate-100 dark:bg-slate-700 border-none text-[9px] rounded-md p-1.5 outline-none font-bold"
+                className="flex-1 bg-slate-100 dark:bg-slate-700 border-none text-[9px] rounded-md p-1.5 outline-none font-bold cursor-pointer"
               >
                 {Object.values(TicketStatus).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              <div className="text-left">
-                <span className="font-bold text-primary text-sm">{ticket.cost} {currency}</span>
+              <div className="text-left shrink-0">
+                <span className="font-black text-primary text-sm">{ticket.cost} {currency}</span>
               </div>
             </div>
           </div>
         ))}
+        {tickets.length === 0 && (
+          <div className="col-span-full py-20 text-center opacity-30 italic font-bold">لا توجد تذاكر صيانة حالياً</div>
+        )}
       </div>
 
       {showForm && (

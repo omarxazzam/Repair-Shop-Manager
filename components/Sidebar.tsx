@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { User, UserRole, View, VisualStyle } from '../types';
-import { LayoutDashboard, Ticket, Package, DollarSign, Users, Settings, LogOut, UserCog, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Ticket, Package, DollarSign, Users, Settings, LogOut, UserCog, ScrollText } from 'lucide-react';
 
 interface SidebarProps {
   currentView: View;
@@ -9,7 +9,6 @@ interface SidebarProps {
   currentUser: User;
   onLogout: () => void;
   darkMode: boolean;
-  // Added visualStyle to satisfy component props passed in App.tsx
   visualStyle: VisualStyle;
 }
 
@@ -21,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, cur
       { id: 'INVENTORY', label: 'المخزن', icon: Package, roles: [UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN] },
       { id: 'FINANCE', label: 'الحسابات', icon: DollarSign, roles: [UserRole.ADMIN, UserRole.MANAGER] },
       { id: 'CRM', label: 'العملاء', icon: Users, roles: [UserRole.ADMIN, UserRole.MANAGER] },
+      { id: 'LOGS', label: 'سجل النشاطات', icon: ScrollText, roles: [UserRole.ADMIN] },
       { id: 'USERS', label: 'الفنيين والمستخدمين', icon: UserCog, roles: [UserRole.ADMIN] },
     ];
     return items.filter(item => item.roles.includes(currentUser.role));

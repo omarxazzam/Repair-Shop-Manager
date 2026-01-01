@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Transaction, TransactionType } from '../types';
 import { StorageService } from '../services/storage';
@@ -8,9 +9,10 @@ interface FinanceProps {
   onUpdate: (t: Transaction[]) => void;
   currency: string;
   styleClasses: string;
+  onAddLog: (action: string, details: string, type: 'CREATE' | 'UPDATE' | 'DELETE' | 'SYSTEM') => void;
 }
 
-export const Finance: React.FC<FinanceProps> = ({ transactions, onUpdate, currency, styleClasses }) => {
+export const Finance: React.FC<FinanceProps> = ({ transactions, onUpdate, currency, styleClasses, onAddLog }) => {
   const [newTrans, setNewTrans] = useState<Partial<Transaction>>({ type: TransactionType.EXPENSE, amount: 0, description: '' });
 
   const handleAdd = () => {
@@ -23,6 +25,7 @@ export const Finance: React.FC<FinanceProps> = ({ transactions, onUpdate, curren
       date: new Date().toISOString(),
     };
     onUpdate([trans, ...transactions]);
+    onAddLog('تسجيل معاملة مالية', `تم تسجيل ${newTrans.type} بمبلغ ${newTrans.amount} ${currency}: ${newTrans.description}`, 'CREATE');
     setNewTrans({ type: TransactionType.EXPENSE, amount: 0, description: '' });
   };
 

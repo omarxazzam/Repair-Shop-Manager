@@ -1,4 +1,5 @@
-import { AppSettings, Customer, InventoryItem, Ticket, TicketStatus, Transaction, TransactionType, User, UserRole } from '../types';
+
+import { AppSettings, Customer, InventoryItem, Ticket, TicketStatus, Transaction, TransactionType, User, UserRole, LogEntry } from '../types';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -14,6 +15,15 @@ const INITIAL_SETTINGS: AppSettings = {
     fontSize: 'medium',
     layoutType: 'spacious',
     visualStyle: 'professional'
+  },
+  printConfig: {
+    showId: true,
+    showCustomerName: true,
+    showDeviceModel: true,
+    showIssue: true,
+    showCost: false,
+    showDate: true,
+    showShopName: true
   }
 };
 
@@ -35,6 +45,7 @@ const INITIAL_INVENTORY: InventoryItem[] = [
 
 const INITIAL_TICKETS: Ticket[] = [];
 const INITIAL_TRANSACTIONS: Transaction[] = [];
+const INITIAL_LOGS: LogEntry[] = [];
 
 const load = <T,>(key: string, initial: T): T => {
   const stored = localStorage.getItem(key);
@@ -63,5 +74,7 @@ export const StorageService = {
   saveUsers: (users: User[]) => save('users', users),
   getSettings: (): AppSettings => load('settings', INITIAL_SETTINGS),
   saveSettings: (settings: AppSettings) => save('settings', settings),
+  getLogs: (): LogEntry[] => load('audit_logs', INITIAL_LOGS),
+  saveLogs: (logs: LogEntry[]) => save('audit_logs', logs),
   generateId
 };

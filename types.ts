@@ -1,3 +1,4 @@
+
 export enum TicketStatus {
   RECEIVED = 'تم الاستلام',
   ASSIGNED = 'تم التعيين',
@@ -5,6 +6,7 @@ export enum TicketStatus {
   WAITING_PARTS = 'بانتظار قطع',
   READY = 'جاهز للتسليم',
   DELIVERED = 'تم التسليم',
+  REJECTED = 'مرفوض',
 }
 
 export enum UserRole {
@@ -32,6 +34,16 @@ export interface AppTheme {
   visualStyle: VisualStyle;
 }
 
+export interface PrintConfig {
+  showId: boolean;
+  showCustomerName: boolean;
+  showDeviceModel: boolean;
+  showIssue: boolean;
+  showCost: boolean;
+  showDate: boolean;
+  showShopName: boolean;
+}
+
 export interface AppSettings {
   shopName: string;
   currency: string;
@@ -39,6 +51,7 @@ export interface AppSettings {
   phone: string;
   address: string;
   theme: AppTheme;
+  printConfig: PrintConfig;
 }
 
 export interface Customer {
@@ -101,4 +114,14 @@ export interface Transaction {
   relatedTechnicianId?: string;
 }
 
-export type View = 'DASHBOARD' | 'TICKETS' | 'INVENTORY' | 'FINANCE' | 'CRM' | 'SETTINGS' | 'USERS';
+export interface LogEntry {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  details: string;
+  timestamp: string;
+  type: 'CREATE' | 'UPDATE' | 'DELETE' | 'SYSTEM';
+}
+
+export type View = 'DASHBOARD' | 'TICKETS' | 'INVENTORY' | 'FINANCE' | 'CRM' | 'SETTINGS' | 'USERS' | 'LOGS';
