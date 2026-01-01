@@ -13,20 +13,21 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, currentUser, onLogout, darkMode, visualStyle }) => {
-  const getMenuItems = () => {
-    const items = [
-      { id: 'DASHBOARD', label: 'لوحة التحكم', icon: LayoutDashboard, roles: [UserRole.ADMIN, UserRole.MANAGER] },
-      { id: 'TICKETS', label: 'قسم الصيانة', icon: Ticket, roles: [UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN] },
-      { id: 'INVENTORY', label: 'المخزن', icon: Package, roles: [UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN] },
-      { id: 'FINANCE', label: 'الحسابات', icon: DollarSign, roles: [UserRole.ADMIN, UserRole.MANAGER] },
-      { id: 'CRM', label: 'العملاء', icon: Users, roles: [UserRole.ADMIN, UserRole.MANAGER] },
-      { id: 'LOGS', label: 'سجل النشاطات', icon: ScrollText, roles: [UserRole.ADMIN] },
-      { id: 'USERS', label: 'الفنيين والمستخدمين', icon: UserCog, roles: [UserRole.ADMIN] },
-    ];
-    return items.filter(item => item.roles.includes(currentUser.role));
-  };
+  const allPossibleItems = [
+    { id: 'DASHBOARD', label: 'لوحة التحكم', icon: LayoutDashboard },
+    { id: 'TICKETS', label: 'قسم الصيانة', icon: Ticket },
+    { id: 'INVENTORY', label: 'المخزن', icon: Package },
+    { id: 'FINANCE', label: 'الحسابات', icon: DollarSign },
+    { id: 'CRM', label: 'العملاء', icon: Users },
+    { id: 'LOGS', label: 'سجل النشاطات', icon: ScrollText },
+    { id: 'USERS', label: 'الفنيين والمستخدمين', icon: UserCog },
+    { id: 'SETTINGS', label: 'الإعدادات', icon: Settings },
+  ];
 
-  const menuItems = getMenuItems();
+  // تصفية القائمة بناءً على صلاحيات المستخدم المحددة
+  const menuItems = allPossibleItems.filter(item => 
+    currentUser.permissions && currentUser.permissions.includes(item.id as View)
+  );
 
   return (
     <div className={`w-64 h-screen fixed right-0 top-0 flex flex-col shadow-xl z-10 hidden md:flex transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-l border-slate-700' : 'bg-slate-900'}`}>
@@ -61,17 +62,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, cur
       </nav>
 
       <div className="p-4 border-t border-slate-700 space-y-2">
-        {currentUser.role === UserRole.ADMIN && (
-          <button 
-            onClick={() => onChangeView('SETTINGS')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              currentView === 'SETTINGS' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
-            }`}
-          >
-            <Settings size={20} />
-            <span>الإعدادات</span>
-          </button>
-        )}
         <button 
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-all font-bold"

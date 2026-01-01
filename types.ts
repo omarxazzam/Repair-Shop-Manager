@@ -13,7 +13,10 @@ export enum UserRole {
   ADMIN = 'admin',
   MANAGER = 'manager',
   TECHNICIAN = 'technician',
+  RECEPTIONIST = 'receptionist',
 }
+
+export type View = 'DASHBOARD' | 'TICKETS' | 'INVENTORY' | 'FINANCE' | 'CRM' | 'SETTINGS' | 'USERS' | 'LOGS';
 
 export interface User {
   id: string;
@@ -22,6 +25,7 @@ export interface User {
   password?: string;
   role: UserRole;
   commissionRate?: number;
+  permissions: View[]; // قائمة بالواجهات المسموح للمستخدم بالوصول إليها
 }
 
 export type VisualStyle = 'professional' | 'glass' | 'minimal' | 'soft';
@@ -123,5 +127,3 @@ export interface LogEntry {
   timestamp: string;
   type: 'CREATE' | 'UPDATE' | 'DELETE' | 'SYSTEM';
 }
-
-export type View = 'DASHBOARD' | 'TICKETS' | 'INVENTORY' | 'FINANCE' | 'CRM' | 'SETTINGS' | 'USERS' | 'LOGS';

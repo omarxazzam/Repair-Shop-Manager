@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { StorageService } from '../services/storage';
@@ -77,24 +78,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             دخول
           </button>
         </form>
-
-        <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
-          <p className="font-semibold mb-2">بيانات تجريبية:</p>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <span className="block text-slate-600 font-bold">Admin</span>
-              <span>admin / 123</span>
-            </div>
-            <div>
-              <span className="block text-slate-600 font-bold">Manager</span>
-              <span>manager / 123</span>
-            </div>
-            <div>
-              <span className="block text-slate-600 font-bold">Tech</span>
-              <span>tech / 123</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
